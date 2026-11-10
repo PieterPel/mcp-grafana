@@ -1,17 +1,18 @@
 #!/usr/bin/env bash
-# Copies the registry and the Source fixtures of grafana/viz-contract into this repository, and writes the pin
-# tools/viz_contract/CONTRACT. Run it with a ref (a commit or a tag) when the contract changes:
+# Copies the registry and the Source and App fixtures of grafana/viz-contract into this repository, and writes the
+# pin tools/viz_contract/CONTRACT. Run it with a ref (a commit or a tag) when the contract changes:
 #
 #   scripts/sync-viz-contract.sh <ref>
 #
-# It needs the gh CLI with read access to grafana/viz-contract. The copies are in tools/viz_contract (registry) and
-# tools/testdata/viz-contract (fixtures). See tools/viz_contract/README.md.
+# It needs the gh CLI. The copies are in tools/viz_contract (registry), tools/testdata/viz-contract (Source
+# fixtures) and ui/mcp-apps/test/viz-contract (App fixtures). See tools/viz_contract/README.md.
 set -euo pipefail
 
 ref="${1:?usage: scripts/sync-viz-contract.sh <commit-or-tag>}"
 root="$(cd "$(dirname "$0")/.." && pwd)"
 registry="$root/tools/viz_contract"
 fixtures="$root/tools/testdata/viz-contract"
+app_fixtures="$root/ui/mcp-apps/test/viz-contract"
 
 hash() {
   if command -v sha256sum >/dev/null 2>&1; then sha256sum "$1" | cut -d' ' -f1; else shasum -a 256 "$1" | cut -d' ' -f1; fi
@@ -47,6 +48,18 @@ for dir in "$src"/fixtures/*/; do
   done
 done
 
+# The App fixtures: the sets that have arguments, a result and a viz spec (fixtures.9).
+rm -rf "$app_fixtures"
+mkdir -p "$app_fixtures"
+for dir in "$src"/fixtures/*/; do
+  name="$(basename "$dir")"
+  if [ ! -f "$dir/args.json" ] || [ ! -f "$dir/result.json" ] || [ ! -f "$dir/spec.json" ]; then
+    continue
+  fi
+  mkdir -p "$app_fixtures/$name"
+  cp "$dir/args.json" "$dir/result.json" "$dir/spec.json" "$app_fixtures/$name/"
+done
+
 cat >"$registry/CONTRACT" <<PIN
 repository: grafana/viz-contract
 commit: $sha
@@ -56,4 +69,4 @@ sha256 pick.json: $(hash "$registry/pick.json")
 PIN
 
 echo "Synced grafana/viz-contract $version ($sha)."
-echo "Next: go test -tags unit ./tools -run 'VizContract|QueryDatasource', then commit tools/viz_contract and tools/testdata/viz-contract."
+echo "Next: go test -tags unit ./tools -run 'VizContract|QueryDatasource', and npm test in ui/mcp-apps, then commit tools/viz_contract, tools/testdata/viz-contract and ui/mcp-apps/test/viz-contract."
