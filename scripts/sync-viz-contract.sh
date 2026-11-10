@@ -26,8 +26,14 @@ gh api "repos/grafana/viz-contract/tarball/$sha" >"$work/contract.tgz"
 mkdir "$work/src"
 tar -xzf "$work/contract.tgz" -C "$work/src" --strip-components=1
 src="$work/src"
-version="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$src/package.json" | head -n1)"
-[ -n "$version" ] || { echo "no version in package.json" >&2; exit 1; }
+# The version comes from the tag: package.json on main keeps a placeholder (viz-contract 8-versioning.md).
+semver='^[0-9]+\.[0-9]+\.[0-9]+$'
+tags="$(gh api --paginate "repos/grafana/viz-contract/tags" --jq ".[] | select(.commit.sha == \"$sha\") | .name")"
+version="$(printf '%s\n' "$tags" | sed -n 's/^v//p' | { grep -E "$semver" || true; } | sort -t. -k1,1n -k2,2n -k3,3n | tail -n1)"
+if [ -z "$version" ]; then
+  version="$(sed -n 's/^ *"version": *"\([^"]*\)".*/\1/p' "$src/package.json" | head -n1)"
+fi
+echo "$version" | grep -qE "$semver" || { echo "$ref has no release tag and no release version in package.json" >&2; exit 1; }
 
 mkdir -p "$registry"
 cp "$src/registry/chart-types.json" "$src/registry/pick.json" "$src/LICENSE" "$registry/"
