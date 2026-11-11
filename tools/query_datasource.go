@@ -79,6 +79,7 @@ type QueryDatasourceResult struct {
 	Panel        dsPanel         `json:"panel"`
 	Alternatives []dsAlternative `json:"alternatives"`
 	Data         dsData          `json:"data"`
+	GrafanaURL   string          `json:"grafanaUrl,omitempty"`
 
 	// notes are for render_grafana_app, not for the App (tool.28, tool.29).
 	notes []string
@@ -233,6 +234,10 @@ func queryDatasource(ctx context.Context, args QueryDatasourceParams) (*mcp.Call
 			Results:    envelope.Results,
 		},
 		notes: failedQueryNotes(envelope.Results),
+	}
+	// The App links to Grafana when the Source knows a URL a browser can open (tool.27).
+	if url, err := grafanaBaseURLFromContext(ctx); err == nil {
+		result.GrafanaURL = url
 	}
 	// Past the budget the Source gives the too-large tool error, and no structured content (tool.24).
 	body, err := json.Marshal(result)
